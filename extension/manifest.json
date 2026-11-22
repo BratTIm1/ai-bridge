@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AI PC Bridge (Gemini + DeepSeek)",
-  "version": "6.1",
+  "version": "6.2",
   "host_permissions": [
     "http://127.0.0.1:8000/*",
     "https://gemini.google.com/*",
@@ -17,7 +17,9 @@
         "https://gemini.google.com/u/*",
         "https://chat.deepseek.com/*"
       ],
-      "js": ["content.js"],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_start",
       "all_frames": true
     }

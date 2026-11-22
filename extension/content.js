@@ -2,7 +2,7 @@ const executedSignatures = new Set();
 let isReady = false;
 const IS_DEEPSEEK = location.hostname.includes("deepseek.com");
 
-const BRIDGE_SYSTEM_PROMPT = `СИСТЕМНАЯ ИНСТРУКЦИЯ (AI Bridge FULL CONTROL v6.1):
+const BRIDGE_SYSTEM_PROMPT = `СИСТЕМНАЯ ИНСТРУКЦИЯ (AI Bridge FULL CONTROL v6.2):
 Ты подключён к моему ПК (Windows) через локальный мост. Чтобы выполнить действие на компьютере, выводи в ответе JSON-блок формата:
 \`\`\`json
 {"action": "название", "target": "цель", "content": "содержимое", "extra": "доп_параметр"}
@@ -139,13 +139,21 @@ function collapseBlock(container, cmdObj, rawJson) {
 
   wrapper.appendChild(summary);
   wrapper.appendChild(codePreview);
+  const msgRoot = container.closest("message-content, .model-response-text, .markdown, .ds-markdown") || container.parentElement;
+  if (msgRoot) {
+    Array.from(msgRoot.children).forEach(ch => {
+      if (ch !== container && !ch.contains(container)) ch.style.display = "none";
+    });
+  }
   container.style.display = "none";
   container.parentNode.insertBefore(wrapper, container);
 
   chrome.runtime.sendMessage({ type: "EXEC_CMD", cmd: cmdObj }, (response) => {
     if (chrome.runtime.lastError || !response || !response.ok) {
+      const errMsg = response?.message || chrome.runtime.lastError?.message || "Ошибка моста (проверь start.bat и F5)";
       summary.style.color = "#f87171";
-      summary.textContent = `⚠️ ${response?.message || "Ошибка моста (проверь start.bat и F5)"}`;
+      summary.textContent = `⚠️ ${errMsg}`;
+      if (!cmdObj.no_reply) autoReplyToChat("⚡ Ошибка моста: " + errMsg.slice(0, 4000));
     } else {
       summary.style.color = "#4ade80";
       if (!cmdObj.no_reply) autoReplyToChat("⚡ " + (response.message || "Выполнено").slice(0, 4000));
@@ -342,16 +350,68 @@ function injectBridgeUI() {
   updateBridgeStatus();
 }
 
+function showUpdateBadge(anchorParent, info) {
+  const allEls = getAllElementsDeep();
+  let badge = allEls.find(el => el.id === "bridge-update-badge");
+  if (!info || !info.hasUpdate) {
+    if (badge) badge.remove();
+    return;
+  }
+  if (!badge) {
+    badge = document.createElement("button");
+    badge.id = "bridge-update-badge";
+    badge.type = "button";
+    Object.assign(badge.style, {
+      display: "inline-flex",
+      alignItems: "center",
+      height: "34px",
+      padding: "0 12px",
+      marginRight: "6px",
+      borderRadius: "18px",
+      border: "1px solid #f59e0b",
+      backgroundColor: "#451a03",
+      color: "#fbbf24",
+      fontFamily: "'Segoe UI', sans-serif",
+      fontSize: "12px",
+      fontWeight: "700",
+      cursor: "pointer",
+      zIndex: "9999"
+    });
+    badge.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      badge.textContent = "⏳ Обновляю с GitHub...";
+      chrome.runtime.sendMessage({ type: "GIT_SYNC", mode: "pull" }, (r) => {
+        if (r && r.ok) {
+          badge.style.borderColor = "#4ade80";
+          badge.style.color = "#4ade80";
+          badge.textContent = "✅ Обновлено! Перезапусти start.bat";
+          setTimeout(() => badge.remove(), 5000);
+        } else {
+          badge.textContent = "⚠️ Ошибка git pull";
+        }
+      });
+    };
+    if (anchorParent) anchorParent.insertBefore(badge, anchorParent.firstChild);
+    else document.body.appendChild(badge);
+  }
+  badge.title = info.changelog || "Доступна новая версия на GitHub";
+  badge.textContent = `⬆️ Обновить v${info.remoteVersion}`;
+}
+
 function updateBridgeStatus() {
   const allEls = getAllElementsDeep();
   const dot = allEls.find(el => el.id === "bridge-status-dot");
+  const btn = allEls.find(el => el.id === "gemini-pc-bridge-btn");
   if (!dot) return;
 
   chrome.runtime.sendMessage({ type: "PING_BRIDGE" }, (res) => {
     if (chrome.runtime.lastError || !res || !res.online) {
       dot.style.background = "#f87171";
+      showUpdateBadge(null, null);
     } else {
       dot.style.background = "#4ade80";
+      showUpdateBadge(btn?.parentElement, res);
     }
   });
 }

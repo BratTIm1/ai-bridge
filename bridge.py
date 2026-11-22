@@ -360,11 +360,34 @@ def run_action(cmd: CommandPayload) -> str:
             return f"📄 {os.path.basename(full_path)}:\n{txt}"
 
         elif action == "list_dir":
-            full_path = target if os.path.isabs(str(target)) else os.path.join(os.path.expanduser("~"), "Desktop", str(target)) if target else resolve_path("")
+            full_path = target if os.path.isabs(str(target)) else os.path.join(os.path.expanduser("~"), "Desktop", str(target)) if target else expand_user_path("")
             if not os.path.exists(full_path):
                 return f"Папка не найдена: {full_path}"
             items = [f"📁 {n}/" if os.path.isdir(os.path.join(full_path, n)) else f"📄 {n}" for n in sorted(os.listdir(full_path))[:100]]
             return f"📂 {full_path}:\n" + ("\n".join(items) if items else "(пусто)")
+
+        elif action == "git_push":
+            repo_dir = os.path.dirname(os.path.abspath(__file__))
+            commit_msg = content if content else (target if target else "fix: update ai-bridge")
+            vp = os.path.join(repo_dir, "version.json")
+            new_v = "6.3"
+            try:
+                cur = {"version": "6.2", "changelog": commit_msg}
+                if os.path.exists(vp):
+                    with open(vp, "r", encoding="utf-8") as vf:
+                        cur = json.load(vf)
+                parts = str(cur.get("version", "6.2")).split(".")
+                parts[-1] = str(int(parts[-1]) + 1)
+                new_v = ".".join(parts)
+                with open(vp, "w", encoding="utf-8") as vf:
+                    json.dump({"version": new_v, "changelog": commit_msg}, vf, ensure_ascii=False, indent=2)
+            except Exception:
+                pass
+            subprocess.run(["git", "-C", repo_dir, "add", "-A"], capture_output=True, timeout=10)
+            subprocess.run(["git", "-C", repo_dir, "commit", "-m", f"v{new_v}: {commit_msg}"], capture_output=True, text=True, encoding="utf-8", errors="ignore", timeout=10)
+            res = subprocess.run(["git", "-C", repo_dir, "push"], capture_output=True, text=True, encoding="utf-8", errors="ignore", timeout=15)
+            out = (res.stdout or res.stderr).strip()
+            return f"GitHub обновлён (v{new_v}): {out[:500]}"
 
         elif action == "batch":
             import json as _json
@@ -417,6 +440,53 @@ def run_action(cmd: CommandPayload) -> str:
         return f"Ошибка ({action}): {e}"
 
 
+@app.get("/status")
+def get_status():
+    import urllib.request
+    local_v = "6.2"
+    try:
+        vp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "version.json")
+        if os.path.exists(vp):
+            with open(vp, "r", encoding="utf-8") as vf:
+                local_v = str(json.load(vf).get("version", "6.2"))
+    except Exception:
+        pass
+    remote_v = local_v
+    changelog = ""
+    for branch in ("main", "master"):
+        try:
+            req = urllib.request.Request(
+                f"https://raw.githubusercontent.com/FANI123-PNG/ai-bridge/{branch}/version.json?t={int(time.time())}",
+                headers={"User-Agent": "AI-Bridge"}
+            )
+            with urllib.request.urlopen(req, timeout=2) as r:
+                data = json.loads(r.read().decode("utf-8"))
+                remote_v = str(data.get("version", local_v))
+                changelog = str(data.get("changelog", ""))
+                break
+        except Exception:
+            pass
+    return {"online": True, "local_version": local_v, "remote_version": remote_v, "has_update": remote_v != local_v, "changelog": changelog}
+
+
+@app.post("/git_sync")
+def git_sync(payload: dict = None):
+    mode = (payload or {}).get("mode", "pull")
+    repo_dir = os.path.dirname(os.path.abspath(__file__))
+    if mode == "pull":
+        res = subprocess.run(["git", "-C", repo_dir, "pull"], capture_output=True, text=True, encoding="utf-8", errors="ignore", timeout=15)
+        out = (res.stdout or res.stderr).strip()
+        return {"status": "ok" if res.returncode == 0 else "error", "message": out or "Обновлено"}
+    elif mode == "push":
+        msg = (payload or {}).get("message", "auto: update ai-bridge")
+        subprocess.run(["git", "-C", repo_dir, "add", "-A"], capture_output=True, timeout=10)
+        subprocess.run(["git", "-C", repo_dir, "commit", "-m", msg], capture_output=True, text=True, encoding="utf-8", errors="ignore", timeout=10)
+        res = subprocess.run(["git", "-C", repo_dir, "push"], capture_output=True, text=True, encoding="utf-8", errors="ignore", timeout=15)
+        out = (res.stdout or res.stderr).strip()
+        return {"status": "ok" if res.returncode == 0 else "error", "message": out or "Отправлено в GitHub"}
+    return {"status": "error", "message": "Unknown mode"}
+
+
 @app.post("/exec")
 def execute_command(cmd: CommandPayload):
     global last_cmd_signature, last_cmd_time
@@ -446,7 +516,7 @@ def execute_command(cmd: CommandPayload):
 
 if __name__ == "__main__":
     print("=" * 55)
-    print("🚀 AI Bridge FULL CONTROL v6.1 запущен (127.0.0.1:8000)")
+    print("🚀 AI Bridge FULL CONTROL v6.2 запущен (127.0.0.1:8000)")
     print("🧰 Инструменты: файлы, код, буфер, мышь, окна, звук, PS")
     print("=" * 55)
     uvicorn.run(app, host="127.0.0.1", port=8000, log_level="error")
