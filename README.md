@@ -2,7 +2,7 @@
 
 [![Release](https://img.shields.io/badge/Release-v6.1-brightgreen?style=for-the-badge)](https://github.com/FANI123-PNG/ai-bridge/releases/latest) ![Browser](https://img.shields.io/badge/Browser-Microsoft%20Edge-0078D7?style=for-the-badge) ![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-blue?style=for-the-badge) ![Python](https://img.shields.io/badge/Python-3.10%2B-yellow?style=for-the-badge)
 
-Локальный мост между браузером **Microsoft Edge** (чат с Gemini или DeepSeek) и твоим ПК на Windows. Позволяет ИИ запускать программы, работать с файлами, выполнять команды в консоли, управлять окнами, буфером обмена и делать скриншоты.
+Локальный мост между браузером **Microsoft Edge** (чат с Gemini или DeepSeek) и твоим ПК на Windows. Позволяет ПРЯМО ИЗ ДИАЛОГОВОГО ИИ запускать программы, работать с файлами, выполнять команды в консоли, управлять окнами, буфером обмена и делать скриншоты.
 
 > 💡 **Основной браузер:** проект рассчитан и протестирован в первую очередь для **Microsoft Edge** (также работает в других Chromium-браузерах).
 
